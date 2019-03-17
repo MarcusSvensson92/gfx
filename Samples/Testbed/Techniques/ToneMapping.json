@@ -1,0 +1,58 @@
+{
+    shader_bindings:
+    [
+        {
+            name: "Constants",
+            type: "cbuffer",
+            content:
+            "
+                float Exposure;
+                bool  ResolveTemporal;    
+            "
+        },
+        { name: "Source", type: "texture2d" },
+        { name: "NearestClamp", type: "sampler" }
+    ],
+    
+    color_attachments:
+    [
+        "back_buffer"
+    ],
+
+    vertex_shader:
+    {
+        outputs:
+        [
+            { name: "FragTexCoord", type: "vec2" }
+        ],
+        main:
+        "
+            gl_Position.x = ((gl_VertexIndex << 1) & 2) * 2.0 - 1.0;
+            gl_Position.y = (gl_VertexIndex & 2) * -2.0 + 1.0;
+            gl_Position.z = 0.0;
+            gl_Position.w = 1.0;
+            
+            FragTexCoord = gl_Position.xy * 0.5 + 0.5;
+        "
+    },
+    
+    fragment_shader:
+    {
+        outputs:
+        [
+            { name: "OutColor", type: "vec4" }
+        ],
+        main:
+        "
+            vec4 color = texture(sampler2D(Source, NearestClamp), FragTexCoord);
+            OutColor.rgb = color.rgb;
+            if (ResolveTemporal)
+            {
+                OutColor.rgb /= max(color.a, 1e-6);
+            }
+            OutColor.rgb = 1.0 - exp(OutColor.rgb * -Exposure);
+            OutColor.rgb = pow(OutColor.rgb, vec3(1.0 / 2.2));
+            OutColor.a = 1.0;
+        "
+    }
+}

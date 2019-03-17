@@ -1,0 +1,29 @@
+{
+    shader_bindings:
+    [
+        {
+            name: "Constants",
+            type: "cbuffer",
+            content:
+            "
+                float Roll;
+            "
+        },
+        { name: "ColorTexture", type: "image2d", format: "rgba8" },
+    ],
+    
+    compute_shader:
+    {
+        work_group_size: { x: 8, y: 8, z: 1 },
+        main:
+        "
+            if (any(greaterThanEqual(gl_GlobalInvocationID.xy, imageSize(ColorTexture))))
+            {
+                return;
+            }
+            float local_coef = length(vec2(ivec2(gl_LocalInvocationID.xy) - 8) / 8.0);
+            float global_coef = sin(float(gl_WorkGroupID.x + gl_WorkGroupID.y) * 0.1 + Roll) * 0.5;
+            imageStore(ColorTexture, ivec2(gl_GlobalInvocationID.xy), vec4(1.0 - global_coef * local_coef, 1.0, 1.0, 1.0));
+        "
+    }
+}

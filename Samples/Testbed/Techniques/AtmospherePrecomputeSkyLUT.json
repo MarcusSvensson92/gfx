@@ -1,0 +1,109 @@
+{
+    shader_bindings:
+    [
+        {
+            name: "Constants",
+            type: "cbuffer",
+            content:
+            "
+                vec3    BetaR;
+                float   PlanetRadius;
+                vec3    BetaM;
+                float   AtmosphereRadius;
+                vec2    DensityScaleHeightRM;
+            "
+        },
+        { name: "SkyLUTR", type: "image3d", format: "rgba32f" },
+        { name: "SkyLUTM", type: "image3d", format: "rgba32f" },
+        { name: "DensityLUT", type: "texture2d" },
+        { name: "LinearClamp", type: "sampler" }
+    ],
+    
+    compute_shader:
+    {
+        work_group_size: { x: 8, y: 8, z: 4 },
+        include:
+        "
+            vec2 RaySphereIntersection(vec3 orig, vec3 dir, float radius)
+            {
+                float a = dot(dir, dir);
+                float b = 2.0 * dot(dir, orig);
+                float c = dot(orig, orig) - radius * radius;
+                float d = sqrt(b * b - 4.0 * a * c);
+                return vec2(-b - d, -b + d) / (2.0 * a);
+            }
+            
+            float CoordToViewAngle(float coord, float height)
+            {
+                float horizon_angle = -(sqrt(height * (2.0 * PlanetRadius + height)) / (PlanetRadius + height));
+                float view_angle;
+                if (coord > 0.5)
+                {
+                    view_angle = horizon_angle + pow(coord * 2.0 - 1.0, 5.0) * (1.0 - horizon_angle);
+                }
+                else
+                {
+                    view_angle = horizon_angle - pow(coord * 2.0, 5.0) * (1 + horizon_angle);
+                }
+                return view_angle;
+            }
+            
+            float CoordToSunAngle(float coord)
+            {
+                return tan((2.0 * coord - 1.0 + 0.26) * 1.1) / tan(1.26 * 1.1);
+            }
+        ",
+        main:
+        "
+            ivec3 dimensions = imageSize(SkyLUTR);
+        
+            if (any(greaterThanEqual(gl_GlobalInvocationID.xyz, dimensions)))
+            {
+                return;
+            }
+        
+            vec3 coord = vec3(gl_GlobalInvocationID.xyz) / vec3(dimensions.xyz);
+            
+            float height = (coord.x + 0.5 / float(dimensions.x)) * (AtmosphereRadius - PlanetRadius);
+            float view_angle = CoordToViewAngle(coord.y, height);
+            float sun_angle = CoordToSunAngle(coord.z);
+            
+            vec3 ray_orig = vec3(0.0, PlanetRadius + height, 0.0);
+            vec3 ray_dir = normalize(vec3(sqrt(clamp(1.0 - view_angle * view_angle, 0.0, 1.0)), view_angle, 0.0));
+            vec3 sun_dir = normalize(-vec3(sqrt(clamp(1.0 - sun_angle * sun_angle, 0.0, 1.0)), sun_angle, 0.0));
+            
+            vec2 intersection = RaySphereIntersection(ray_orig, ray_dir, PlanetRadius);
+            float ray_length = intersection.y > 0.0 ? intersection.x : 1e20;
+            
+            intersection = RaySphereIntersection(ray_orig, ray_dir, AtmosphereRadius);
+            ray_length = min(ray_length, intersection.y);
+            
+            const int sample_count = 64;
+            float step_size = ray_length / float(sample_count);
+            
+            vec2 density_orig_to_point = vec2(0.0, 0.0);
+            vec3 scatter_r = vec3(0.0, 0.0, 0.0);
+            vec3 scatter_m = vec3(0.0, 0.0, 0.0);
+            
+            for (int i = 0; i < sample_count; ++i)
+            {
+                vec3 sample_point = ray_orig + ray_dir * ((float(i) + 0.5) * step_size);
+            
+                float height = length(sample_point) - PlanetRadius;
+                vec2 density_local = exp(-height.xx / DensityScaleHeightRM) * step_size;
+                density_orig_to_point += density_local;
+                
+                float cos_angle = dot(normalize(sample_point), -sun_dir);
+                vec2 density_point_to_atmosphere = texture(sampler2D(DensityLUT, LinearClamp), vec2(cos_angle * 0.5 + 0.5, height / (AtmosphereRadius - PlanetRadius))).rg;
+                
+                vec2 density_orig_to_atmosphere = density_orig_to_point + density_point_to_atmosphere;
+                vec3 extinction = exp(-(BetaR * density_orig_to_atmosphere.x + BetaM * density_orig_to_atmosphere.y));
+                scatter_r += density_local.x * extinction;
+                scatter_m += density_local.y * extinction;
+            }
+            
+            imageStore(SkyLUTR, ivec3(gl_GlobalInvocationID.xyz), vec4(scatter_r, 0.0));
+            imageStore(SkyLUTM, ivec3(gl_GlobalInvocationID.xyz), vec4(scatter_m, 0.0));
+        "
+    },
+}

@@ -1,0 +1,127 @@
+{
+    shader_bindings:
+    [
+        {
+            name: "Constants",
+            type: "cbuffer",
+            content:
+            "
+                mat4    InvViewProjZeroTranslation;
+                vec3    LightDirection;
+                float   LightIntensity;
+                vec3    BetaR;
+                float   PlanetRadius;
+                vec3    BetaM;
+                float   AtmosphereRadius;
+                float   HeightAboveGround;
+                float   MieG;
+            "
+        },
+        {
+            name: "SkyLUTR",
+            type: "texture3d"
+        },
+        {
+            name: "SkyLUTM",
+            type: "texture3d"
+        },
+        {
+            name: "LinearClamp",
+            type: "sampler"
+        }
+    ],
+    
+    color_attachments:
+    [
+        "r11g11b10_ufloat"
+    ],
+    depth_attachment: "d32_sfloat",
+
+    vertex_shader:
+    {
+        outputs:
+        [
+            { name: "RayDir", type: "vec3" }
+        ],
+        main:
+        "
+            gl_Position.x = ((gl_VertexIndex << 1) & 2) * 2.0 - 1.0;
+            gl_Position.y = (gl_VertexIndex & 2) * -2.0 + 1.0;
+            gl_Position.z = 1.0;
+            gl_Position.w = 1.0;
+            
+            vec4 dir = InvViewProjZeroTranslation * gl_Position;
+            RayDir = dir.xyz / dir.w;
+        "
+    },
+    
+    fragment_shader:
+    {
+        outputs:
+        [
+            { name: "OutColor", type: "vec3" }
+        ],
+        include:
+        "
+            float Sun(float angle)
+            {
+                float g = 0.98;
+                float g2 = g * g;
+                float sun = pow(1.0 - g, 2.0) / (4.0 * 3.14159265 * pow(1.0 + g2 - 2.0 * g * angle, 1.5));
+                return sun * 0.005;
+            }
+            
+            float ViewAngleToCoord(float view_angle, float height)
+            {
+                float horizon_angle = -(sqrt(height * (2.0 * PlanetRadius + height)) / (PlanetRadius + height));
+                float coord;
+                if (view_angle > horizon_angle)
+                {
+                    coord = 0.5 * pow((view_angle - horizon_angle) / (1.0 - horizon_angle), 0.2) + 0.5;
+                }
+                else
+                {
+                    coord = 0.5 * pow((horizon_angle - view_angle) / (horizon_angle + 1.0), 0.2);
+                }
+                return coord;
+            }
+            
+            float SunAngleToCoord(float sun_angle)
+            {
+                return 0.5 * ((atan(max(sun_angle, -0.1975) * tan(1.26 * 1.1)) / 1.1) + (1.0 - 0.26));
+            }
+        ",
+        main:
+        "
+            vec3 ray_orig = normalize(vec3(0.0, PlanetRadius + HeightAboveGround, 0.0));
+            vec3 ray_dir = normalize(RayDir);
+            
+            float height = HeightAboveGround / (AtmosphereRadius - PlanetRadius);
+            float view_angle = dot(ray_orig, ray_dir);
+            float sun_angle = dot(ray_orig, -LightDirection);
+            
+            vec3 coord;
+            coord.x = height;
+            coord.y = ViewAngleToCoord(view_angle, height);
+            coord.z = SunAngleToCoord(sun_angle);
+            
+            vec3 scatter_r = texture(sampler3D(SkyLUTR, LinearClamp), coord).rgb;
+            vec3 scatter_m = texture(sampler3D(SkyLUTM, LinearClamp), coord).rgb;
+            
+            float cos_angle = dot(ray_dir, -LightDirection);
+            float phase_r = 3.0 / (16.0 * 3.14159265) * (1.0 + cos_angle * cos_angle);
+            float phase_m = 3.0 / (8.0 * 3.14159265) * ((1.0 - MieG * MieG) * (1.0 + cos_angle * cos_angle)) / ((2.0 + MieG * MieG) * pow(1.0 + MieG * MieG - 2.0 * MieG * cos_angle, 1.5));
+            
+            OutColor = (scatter_r * BetaR * phase_r + scatter_m * BetaM * phase_m) * LightIntensity;
+            OutColor += Sun(cos_angle) * scatter_m;
+            OutColor = max(OutColor, 0.0);
+        "
+    },
+    
+    depth_stencil_state:
+    {
+        depth_test_enable: true,
+        depth_write_enable: false,
+        depth_compare_op: "less_equal"
+    }
+}

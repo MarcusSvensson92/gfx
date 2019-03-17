@@ -1,0 +1,61 @@
+{
+    vertex_attributes:
+    [
+        { name: "VertPosition", binding: 0, format: "r32g32b32_sfloat", offset: 0, input_rate: "vertex" },
+        { name: "VertTexCoord", binding: 1, format: "r32g32_sfloat",    offset: 0, input_rate: "vertex" }
+    ],
+    
+    shader_bindings:
+    [
+        {
+            name: "Constants",
+            type: "cbuffer",
+            content:
+            "
+                mat4 World;
+                mat4 View;
+                mat4 Projection;
+            "
+        },
+        { name: "Albedo", type: "texture2d" },
+        { name: "LinearClamp", type: "sampler" }
+    ],
+    
+    color_attachments:
+    [
+        "back_buffer"
+    ],
+    depth_attachment: "d32_sfloat",
+
+    vertex_shader:
+    {
+        outputs:
+        [
+            { name: "FragTexCoord", type: "vec2" }
+        ],
+        main:
+        "
+            gl_Position = Projection * View * World * vec4(VertPosition, 1.0);
+            FragTexCoord = VertTexCoord;
+        "
+    },
+    
+    fragment_shader:
+    {
+        outputs:
+        [
+            { name: "OutColor", type: "vec4" }
+        ],
+        main:
+        "
+            OutColor = texture(sampler2D(Albedo, LinearClamp), FragTexCoord);
+        "
+    },
+    
+    depth_stencil_state:
+    {
+        depth_test_enable: true,
+        depth_write_enable: true,
+        depth_compare_op: "less_equal"
+    },
+}
