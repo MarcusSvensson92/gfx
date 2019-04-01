@@ -5,9 +5,6 @@
 #define VK_USE_PLATFORM_WIN32_KHR
 #define NOMINMAX
 #include <Windows.h>
-#else
-#define VK_USE_PLATFORM_XLIB_KHR
-#include <X11/Xutil.h>
 #endif
 
 #include <vulkan/vulkan.h>
@@ -53,9 +50,9 @@ struct GfxCommandBuffer_T
     GfxRenderSetup                      m_RenderSetup;
 
     VkDescriptorPool				    m_DescriptorPool;
-    Array<VkWriteDescriptorSet>      m_DescriptorWrites;
-    Array<VkDescriptorBufferInfo>    m_DescriptorBufferInfo;
-    Array<VkDescriptorImageInfo>     m_DescriptorImageInfo;
+    Array<VkWriteDescriptorSet>         m_DescriptorWrites;
+    Array<VkDescriptorBufferInfo>       m_DescriptorBufferInfo;
+    Array<VkDescriptorImageInfo>        m_DescriptorImageInfo;
     bool                                m_IsDescriptorSetDirty;
 };
 
@@ -75,7 +72,7 @@ struct GfxDevice_T
 	VkExtent2D						    m_SwapchainImageExtent;
 	uint32_t						    m_SwapchainImageCount;
 	uint32_t						    m_SwapchainImageIndex;
-    Array<GfxTexture_T>              m_SwapchainTextures;
+    Array<GfxTexture_T>                 m_SwapchainTextures;
 	VkSurfaceFormatKHR				    m_SwapchainSurfaceFormat;
 
 	VkCommandPool					    m_CommandPool;
@@ -90,21 +87,21 @@ struct GfxDevice_T
 
     uint32_t						    m_CommandBufferIndexCurr;
     uint32_t						    m_CommandBufferIndexNext;
-    Array<GfxCommandBuffer_T>        m_CommandBuffers;
+    Array<GfxCommandBuffer_T>           m_CommandBuffers;
 
-    Array<GfxCmdFunction>            m_CmdFunctions;
-    Array<uint8_t>                   m_CmdFunctionUserData;
-    Array<uint32_t>                  m_CmdFunctionUserDataOffsets;
+    Array<GfxCmdFunction>               m_CmdFunctions;
+    Array<uint8_t>                      m_CmdFunctionUserData;
+    Array<uint32_t>                     m_CmdFunctionUserDataOffsets;
 
     struct TechniqueEntry
     {
         GfxTechnique                    m_Technique;
-        String                       m_Filepath;
+        String                          m_Filepath;
         uint64_t                        m_Checksum;
     };
-    HashTable<TechniqueEntry>        m_TechniqueEntries;
+    HashTable<TechniqueEntry>           m_TechniqueEntries;
 
-#if defined(_DEBUG) || !defined(NDEBUG)
+#ifdef _DEBUG
 	VkDebugReportCallbackEXT		    m_DebugCallback;
 #endif
 
@@ -196,7 +193,7 @@ struct GfxTechnique_T
     HashTable<ShaderBinding>	        m_ShaderBindings;
     uint32_t                            m_ShaderBindingCount;
 
-#if defined(_DEBUG) || !defined(NDEBUG)
+#ifdef _DEBUG
     GfxRenderSetup                      m_RenderSetupHead;
     GfxRenderSetup                      m_RenderSetupTail;
 #endif
@@ -212,8 +209,8 @@ struct GfxRenderSetup_T
     VkFramebuffer					    m_Framebuffer;
     VkExtent2D						    m_Extent;
 
-#if defined(_DEBUG) || !defined(NDEBUG)
-    Array<VkImageView>               m_ImageViews;
+#ifdef _DEBUG
+    Array<VkImageView>                  m_ImageViews;
     GfxTechnique                        m_Technique;
     GfxRenderSetup                      m_Next;
     GfxRenderSetup                      m_Prev;
@@ -230,14 +227,14 @@ struct GfxModel_T
         uint32_t                        m_IndexOffset;
         uint32_t                        m_IndexCount;
     };
-    Array<Mesh>                      m_Meshes;
+    Array<Mesh>                         m_Meshes;
 
     struct Material
     {
         int32_t                         m_DiffuseTextureIndex;
     };
-    Array<Material>                  m_Materials;
-    Array<GfxTexture>                m_Textures;
+    Array<Material>                     m_Materials;
+    Array<GfxTexture>                   m_Textures;
 
     GfxBuffer                           m_VertexBuffer;
     GfxBuffer                           m_IndexBuffer;
